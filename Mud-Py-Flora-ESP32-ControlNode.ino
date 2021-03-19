@@ -105,9 +105,10 @@ bool readSensorAndReportViaMQTT(BLEAddress SensorID){
   }
   esp_task_wdt_reset();
 
-  bool sentSensorData = readSensorDataAndSendViaMQTT(sensorService, SensorID);
+  String ID = String(SensorID.toString().c_str());
+  bool sentSensorData = readSensorDataAndSendViaMQTT(sensorService, ID );
   esp_task_wdt_reset();
-  readSensorBatteryLevelAndSendViaMQTT(sensorService, SensorID);
+  readSensorBatteryLevelAndSendViaMQTT(sensorService, ID);
   esp_task_wdt_reset();
   sensorClient->disconnect();
   esp_task_wdt_reset();
@@ -171,7 +172,7 @@ bool switchSensorToDataMode(BLERemoteService* sensorService) {
   return true;
 }
 
-bool readSensorDataAndSendViaMQTT(BLERemoteService* sensorService, BLEAddress SensorID){
+bool readSensorDataAndSendViaMQTT(BLERemoteService* sensorService, String SensorID){
   Serial.println("readSensorDataAndSendViaMQTT");
   esp_task_wdt_reset();
   BLERemoteCharacteristic* sensorDataCharacteristic = nullptr;
@@ -211,16 +212,16 @@ bool readSensorDataAndSendViaMQTT(BLERemoteService* sensorService, BLEAddress Se
   return sentOK;
 }
 
-bool sendSensorDataViaMQTT(BLEAddress SensorID){
+bool sendSensorDataViaMQTT(String SensorID){
   Serial.println("sendSensorDataViaMQTT");
   try{
-    publishMQTTMessage(MQTT_SENSOR_TOPIC,String(SensorID.toString().c_str()), SENSOR_LIGHT, String(FloraDecoder::sensor_Light));
+    publishMQTTMessage(MQTT_SENSOR_TOPIC,SensorID, SENSOR_LIGHT, String(FloraDecoder::sensor_Light));
     esp_task_wdt_reset();
-    publishMQTTMessage(MQTT_SENSOR_TOPIC,String(SensorID.toString().c_str()), SENSOR_MOISTURE, String(FloraDecoder::sensor_Moisture));
+    publishMQTTMessage(MQTT_SENSOR_TOPIC,SensorID, SENSOR_MOISTURE, String(FloraDecoder::sensor_Moisture));
     esp_task_wdt_reset();
-    publishMQTTMessage(MQTT_SENSOR_TOPIC,String(SensorID.toString().c_str()), SENSOR_TEMPERATURE, String(FloraDecoder::sensor_Temperature));
+    publishMQTTMessage(MQTT_SENSOR_TOPIC,SensorID, SENSOR_TEMPERATURE, String(FloraDecoder::sensor_Temperature));
     esp_task_wdt_reset();
-    publishMQTTMessage(MQTT_SENSOR_TOPIC,String(SensorID.toString().c_str()), SENSOR_CONDUCTIVITY, String(FloraDecoder::sensor_Conductivity));    
+    publishMQTTMessage(MQTT_SENSOR_TOPIC,SensorID, SENSOR_CONDUCTIVITY, String(FloraDecoder::sensor_Conductivity));    
     esp_task_wdt_reset();
   }
   catch(...){
@@ -229,7 +230,7 @@ bool sendSensorDataViaMQTT(BLEAddress SensorID){
   return true;
 }
 
-void readSensorBatteryLevelAndSendViaMQTT(BLERemoteService* sensorService,  BLEAddress SensorID){
+void readSensorBatteryLevelAndSendViaMQTT(BLERemoteService* sensorService,  String SensorID){
   Serial.println("sendSensorDataViaMQTT");
   BLERemoteCharacteristic* sensorBatteryCharacteristic = nullptr;
   try {
@@ -258,7 +259,7 @@ void readSensorBatteryLevelAndSendViaMQTT(BLERemoteService* sensorService,  BLEA
   FloraDecoder::DecodeBattery(sensorData);
 
   if (FloraDecoder::decodeOK_Sensor){
-    publishMQTTMessage(MQTT_SENSOR_TOPIC,String(SensorID.toString().c_str()), SENSOR_BATTERY, String(FloraDecoder::sensor_Battery));
+    publishMQTTMessage(MQTT_SENSOR_TOPIC,SensorID, SENSOR_BATTERY, String(FloraDecoder::sensor_Battery));
   }
 }
 
