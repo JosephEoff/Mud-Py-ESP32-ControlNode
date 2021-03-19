@@ -69,18 +69,22 @@ void handleSensorTopic(String topic, char* payload){
 void processSensor(BLEAddress SensorID){
   int counter = 0;
   Serial.println("processSensor ");
+    String ID = String(SensorID.toString().c_str());
   while (counter<SENSORREADATTEMPTS){
     counter += 1;
     esp_task_wdt_reset();
-    if (readSensorAndReportViaMQTT(SensorID)){
+    if (readSensorAndReportViaMQTT(SensorID, ID)){
       break;
     }
     esp_task_wdt_reset();
+
   }
+ 
+   publishMQTTMessage(MQTT_SENSOR_TOPIC, ID, SENSOR_READTRYCOUNT, String(counter));
    esp_task_wdt_reset();
 }
 
-bool readSensorAndReportViaMQTT(BLEAddress SensorID){
+bool readSensorAndReportViaMQTT(BLEAddress SensorID, String ID){
   Serial.println("readSensorAndReportViaMQTT ");
   BLEClient* sensorClient = getSensorClient(SensorID);
   
@@ -105,7 +109,6 @@ bool readSensorAndReportViaMQTT(BLEAddress SensorID){
   }
   esp_task_wdt_reset();
 
-  String ID = String(SensorID.toString().c_str());
   bool sentSensorData = readSensorDataAndSendViaMQTT(sensorService, ID );
   esp_task_wdt_reset();
   readSensorBatteryLevelAndSendViaMQTT(sensorService, ID);
