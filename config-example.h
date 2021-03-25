@@ -26,3 +26,4 @@ const String  SENSOR_BATTERY = "battery";
 const String  SENSOR_MOISTURE = "moisture";
 const String  SENSOR_TEMPERATURE = "temperature";
 const String  SENSOR_CONDUCTIVITY = "conductivity";
+const String  SENSOR_READTRYCOUNT = "readtries";
