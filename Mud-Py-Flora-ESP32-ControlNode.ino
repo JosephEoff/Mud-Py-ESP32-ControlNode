@@ -184,7 +184,7 @@ bool readSensorDataAndSendViaMQTT(BLERemoteService* sensorService, String Sensor
     esp_task_wdt_reset();
   }
   catch (...) {
-    // something went wrong
+    
   }
   if (sensorDataCharacteristic == nullptr) {
     return false;
@@ -261,12 +261,12 @@ void readSensorBatteryLevelAndSendViaMQTT(BLERemoteService* sensorService,  Stri
   
   FloraDecoder::DecodeBattery(sensorData);
 
-  if (FloraDecoder::decodeOK_Sensor){
+  if (FloraDecoder::decodeOK_Battery){
     publishMQTTMessage(MQTT_SENSOR_TOPIC,SensorID, SENSOR_BATTERY, String(FloraDecoder::sensor_Battery));
   }
 }
 
-void handleSleepTopic(String topic, char*  payload){
+void handleSleepTopic(String topic, char* payload){
   esp_task_wdt_reset();
   Serial.println("handleSleepTopic topic:" + topic);
   Serial.println("handleSleepTopic topic to match:" + topicNode + MQTT_SLEEP_TOPIC);
@@ -378,6 +378,7 @@ void publishMQTTMessage(String baseTopic, String ID, String topic, String conten
 }
 
 void loop() {
+  esp_task_wdt_reset();
   MQTTclient.loop();
   if (esp_timer_get_time() - timeOfLastMessage > SENSORIDMESSAGETIMEOUT_SECONDS*1000000){
     if (sentDoneMessage){
