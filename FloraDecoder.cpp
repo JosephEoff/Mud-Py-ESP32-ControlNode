@@ -13,6 +13,7 @@ bool FloraDecoder::decodeOK_Sensor;
 
 void FloraDecoder::DecodeSensorData(std::string floraData){
   try{
+    FloraDecoder::decodeOK_Sensor = false;
     const char *floraBytes = floraData.c_str();
   
     int16_t* temperature_integer = (int16_t*)floraBytes;
@@ -22,12 +23,20 @@ void FloraDecoder::DecodeSensorData(std::string floraData){
     
     FloraDecoder::sensor_Light = floraBytes[3] + floraBytes[4] * 256;
     FloraDecoder::sensor_Conductivity =  floraBytes[8] + floraBytes[9] * 256;
+    
+    FloraDecoder::decodeOK_Sensor = true;
     if (FloraDecoder::sensor_Temperature>150){
       FloraDecoder::decodeOK_Sensor = false;
     }
-    else{
-      FloraDecoder::decodeOK_Sensor = true;
+    
+    if (FloraDecoder::sensor_Moisture>100){
+      FloraDecoder::decodeOK_Sensor = false;
     }
+
+    if (FloraDecoder::sensor_Conductivity>10000){
+      FloraDecoder::decodeOK_Sensor = false;
+    }
+
   }  
   catch (...) {   
      FloraDecoder::decodeOK_Sensor = false;
@@ -37,6 +46,7 @@ void FloraDecoder::DecodeSensorData(std::string floraData){
 
 void FloraDecoder::DecodeBattery(std::string floraData){
   try{
+    FloraDecoder::decodeOK_Battery = false;
     const char *floraBytes = floraData.c_str();
     FloraDecoder::sensor_Battery = floraBytes[0];
     if (FloraDecoder::sensor_Battery>=0 && FloraDecoder::sensor_Battery<=100){

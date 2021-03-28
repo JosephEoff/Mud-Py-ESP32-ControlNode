@@ -1,9 +1,10 @@
 //Example configuration for the Mud-Py flora ControlNode
 
-const int     WATCHDOG_TIMEOUT_SECONDS = 60;
+const int     WATCHDOG_TIMEOUT_SECONDS = 120;
 const int     RETRYPERIOD_SECONDS = 300;
 const int     SENSORIDMESSAGETIMEOUT_SECONDS = 10;
 const int     SENSORREADATTEMPTS = 4;
+const int     MAXIMUMSENSORCOUNT = 30;
 
 const char*   WLAN_SSID       = "SomeSSID";
 const char*   WLAN_PASSWORD   = "SomePassword";
@@ -20,6 +21,7 @@ const String  MQTT_SENSORID_TOPIC = "sensorID";
 const String  MQTT_SLEEP_TOPIC = "sleep";
 const String  MQTT_DONE_TOPIC = "done";
 const int     MQTT_RETRY_WAIT = 5000;
+const int     MQTT_KEEPALIVE_SECONDS  = 3600;
 
 const String  SENSOR_LIGHT = "light";
 const String  SENSOR_BATTERY = "battery";

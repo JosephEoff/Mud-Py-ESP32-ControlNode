@@ -20,6 +20,11 @@ String topicNode = "";
 int64_t timeOfLastMessage;
 int sleepTimeSeconds = -1;
 bool sentDoneMessage = false;
+char sendBuffer[64];
+std::string sensorData;
+
+int sensorIDsCount = 0;
+BLEAddress *sensorIDs[MAXIMUMSENSORCOUNT];
 
 
 void setup() {
@@ -28,6 +33,7 @@ void setup() {
 
   BLEDevice::init("");
   BLEDevice::setPower(ESP_PWR_LVL_P7);
+  int sensorIDsCount = 0;
 
   setupWatchdog();
   topicNode = MQTT_NODE_TOPIC + "/" + WiFi.macAddress() +"/"; 
@@ -38,16 +44,16 @@ void setup() {
   subscribeToSleepMessage();
   sendActiveNotice(nodeBatteryVoltage);
   timeOfLastMessage = esp_timer_get_time();
+  doProcessingLoop();
 }
 
 void MQTTcallback(char* topic, byte* payload, unsigned int length) {
-  timeOfLastMessage = esp_timer_get_time();
-  String topicString = topic;
-  Serial.println("MQTTcallback topic:" + topicString);
+  String messageTopic = topic;
+  Serial.println("MQTTcallback topic:" + messageTopic);
   payload[length] = '\0';
   char* payloadString = (char*)payload;
-  handleSensorTopic(topicString, payloadString);
-  handleSleepTopic(topicString, payloadString);
+  handleSensorTopic(messageTopic, payloadString);
+  handleSleepTopic(messageTopic, payloadString);
   timeOfLastMessage = esp_timer_get_time();
 }
 
@@ -56,12 +62,16 @@ void handleSensorTopic(String topic, char* payload){
   Serial.println("handleSensorTopic topic: " + topicNode + MQTT_SENSORID_TOPIC);
   if (topic == topicNode + MQTT_SENSORID_TOPIC){
     Serial.println("handleSensorTopic topic matched: " + topic);
-    BLEAddress sensorID(payload);
-    
-    Serial.print("handleSensorTopic BLEAddress: ");
-    Serial.println(sensorID.toString().c_str());
-    processSensor(sensorID);
+
+    if (sensorIDsCount<MAXIMUMSENSORCOUNT){
+         sensorIDs[sensorIDsCount] = new BLEAddress(payload);
+         Serial.print("handleSensorTopic BLEAddress: ");
+         Serial.println(sensorIDs[sensorIDsCount]->toString().c_str());
+         sensorIDsCount += 1;
+         
+    }
   }
+  
   timeOfLastMessage = esp_timer_get_time();
   esp_task_wdt_reset();
 }
@@ -69,7 +79,7 @@ void handleSensorTopic(String topic, char* payload){
 void processSensor(BLEAddress SensorID){
   int counter = 0;
   Serial.println("processSensor ");
-    String ID = String(SensorID.toString().c_str());
+  String ID = String(SensorID.toString().c_str());
   while (counter<SENSORREADATTEMPTS){
     counter += 1;
     esp_task_wdt_reset();
@@ -99,12 +109,12 @@ bool readSensorAndReportViaMQTT(BLEAddress SensorID, String ID){
   esp_task_wdt_reset();
 
   if (sensorService == nullptr) {
-    sensorClient->disconnect();
+    disconnectSensorClient(sensorClient);
     return false;
   }
 
   if (!switchSensorToDataMode(sensorService)){
-    sensorClient->disconnect();
+    disconnectSensorClient(sensorClient);
     return false;
   }
   esp_task_wdt_reset();
@@ -113,18 +123,49 @@ bool readSensorAndReportViaMQTT(BLEAddress SensorID, String ID){
   esp_task_wdt_reset();
   readSensorBatteryLevelAndSendViaMQTT(sensorService, ID);
   esp_task_wdt_reset();
-  sensorClient->disconnect();
+  disconnectSensorClient(sensorClient);
   esp_task_wdt_reset();
 
   //Don't care if the sensor battery data made it, just if the sensor data was read and sent.
   return sentSensorData;
 }
 
+void disconnectSensorClient(BLEClient* sensorClient){
+    try {
+      sensorClient->disconnect();
+    }
+    catch (...) {
+      
+    }
+    
+    delay(1000);
+    
+    try {
+       delete sensorClient;
+    }
+    catch (...) {      
+    }
+}
+
+
 BLEClient* getSensorClient(BLEAddress sensorAddress) {
   Serial.println("getSensorClient ");
+  BLEClient* sensorClient;
+
   esp_task_wdt_reset();
-  BLEClient* sensorClient = BLEDevice::createClient();
+  try { 
+    sensorClient = BLEDevice::createClient();  
+  }
+  catch (...) {
+     esp_task_wdt_reset();
+     return nullptr;
+  }
+  
   esp_task_wdt_reset();
+
+  if (sensorClient==nullptr){
+    return nullptr;
+  }
 
   if (!sensorClient->connect(sensorAddress)) {
     Serial.println("getSensorClient failed: sensorClient->connect(sensorAddress) ");
@@ -142,9 +183,10 @@ BLERemoteService* getSensorService(BLEClient* sensorClient) {
     esp_task_wdt_reset();
     sensorService = sensorClient->getService(FloraServiceUUID);
     esp_task_wdt_reset();
+
   }
   catch (...) {
-
+    return nullptr;
   }
 
   return sensorService;
@@ -193,7 +235,7 @@ bool readSensorDataAndSendViaMQTT(BLERemoteService* sensorService, String Sensor
   esp_task_wdt_reset();
   
   //Read data from sensor
-  std::string sensorData;
+
   try{
     esp_task_wdt_reset();
     sensorData = sensorDataCharacteristic->readValue();
@@ -331,6 +373,7 @@ void connectWLAN(){
 void connectMQTT(){
   MQTTclient.setServer(MQTT_HOST, MQTT_PORT);
   MQTTclient.setCallback(MQTTcallback);
+  MQTTclient.setKeepAlive(MQTT_KEEPALIVE_SECONDS);
   while (!MQTTclient.connected()) {
     if (!MQTTclient.connect(MQTT_CLIENTID, MQTT_USERNAME, MQTT_PASSWORD)) {
       delay(MQTT_RETRY_WAIT);
@@ -367,20 +410,42 @@ void sendDoneMessage(){
 void publishMQTTMessage(String baseTopic, String ID, String topic, String content){
   String completeTopic = baseTopic+ "/" + ID + "/" +topic;
   Serial.println("publishMQTTMessage topic: " + completeTopic + " content:" + content);
-  char buffer[64];
+
   
   esp_task_wdt_reset();
-
-  snprintf(buffer, 64, content.c_str());
-  MQTTclient.publish(completeTopic.c_str(), buffer); 
-  
+  reconnectMQTTIfNeeded();
+  esp_task_wdt_reset();
+  snprintf(sendBuffer, 64, content.c_str());
+  Serial.println("Buffer ready.");
+  MQTTclient.publish(completeTopic.c_str(), sendBuffer); 
+  Serial.println("Message published");
   esp_task_wdt_reset();
 }
 
-void loop() {
+void reconnectMQTTIfNeeded(){
+    if (!MQTTclient.connected()) {
+      esp_task_wdt_reset();
+      Serial.println("Reconnect to MQTT server.");
+      connectMQTT();
+      esp_task_wdt_reset();
+  }
+}
+
+void doProcessingLoop(){
+  while(true){
+    processLoop();
+  }  
+}
+
+void processLoop(){
+  esp_task_wdt_reset();
+  reconnectMQTTIfNeeded();
   esp_task_wdt_reset();
   MQTTclient.loop();
+  
+  
   if (esp_timer_get_time() - timeOfLastMessage > SENSORIDMESSAGETIMEOUT_SECONDS*1000000){
+    readAndSendDataFromAllSensors();
     if (sentDoneMessage){
         takeANap(RETRYPERIOD_SECONDS);
     }
@@ -388,4 +453,18 @@ void loop() {
       sendDoneMessage();
     }
   }
+}
+
+void readAndSendDataFromAllSensors(){
+  int counter = 0;
+  while (counter<sensorIDsCount){
+     processSensor(*sensorIDs[counter]);
+     counter += 1;
+  }
+ 
+}
+
+
+void loop() {
+ 
 }
