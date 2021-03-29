@@ -364,6 +364,8 @@ void connectToServer(){
 }
 
 void connectWLAN(){
+  WiFi.setHostname(MQTT_CLIENTID);
+  WiFi.mode(WIFI_STA);
   WiFi.begin(WLAN_SSID, WLAN_PASSWORD);
   while (WiFi.status() != WL_CONNECTED) {
     delay(100);
