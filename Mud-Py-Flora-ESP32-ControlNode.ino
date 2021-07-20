@@ -39,10 +39,17 @@ void setup() {
   topicNode = MQTT_NODE_TOPIC + "/" + WiFi.macAddress() +"/"; 
   
   float nodeBatteryVoltage = getNodeBatteryVoltage();
+  esp_task_wdt_reset();
   connectToServer();
+  esp_task_wdt_reset();
   subscribeToSensorIDMessage();
+  esp_task_wdt_reset();
   subscribeToSleepMessage();
-  sendActiveNotice(nodeBatteryVoltage);
+  esp_task_wdt_reset();
+  long rssi = WiFi.RSSI();
+  esp_task_wdt_reset();
+  sendActiveNotice(nodeBatteryVoltage, rssi);
+  esp_task_wdt_reset();
   timeOfLastMessage = esp_timer_get_time();
   doProcessingLoop();
 }
@@ -123,11 +130,19 @@ bool readSensorAndReportViaMQTT(BLEAddress SensorID, String ID){
   esp_task_wdt_reset();
   readSensorBatteryLevelAndSendViaMQTT(sensorService, ID);
   esp_task_wdt_reset();
+  if (sentSensorData){
+    int rssi = sensorClient->getRssi();
+    sendSensorRSSIViaMQTT(ID,rssi);
+  }
   disconnectSensorClient(sensorClient);
   esp_task_wdt_reset();
 
   //Don't care if the sensor battery data made it, just if the sensor data was read and sent.
   return sentSensorData;
+}
+void sendSensorRSSIViaMQTT(String SensorID, int rssi){
+  publishMQTTMessage(MQTT_SENSOR_TOPIC,SensorID, SENSOR_RSSI, String(rssi));
+  esp_task_wdt_reset();
 }
 
 void disconnectSensorClient(BLEClient* sensorClient){
@@ -398,7 +413,8 @@ void disconnectMQTT(){
     MQTTclient.disconnect();
 }
 
-void sendActiveNotice(float batteryVoltage){
+void sendActiveNotice(float batteryVoltage, long rssi){
+  publishMQTTMessage(MQTT_NODE_TOPIC, WiFi.macAddress(), MQTT_NODE_RSSI_TOPIC, String(rssi));
   publishMQTTMessage(MQTT_NODE_TOPIC, WiFi.macAddress(), MQTT_BATTERY_TOPIC, String(batteryVoltage));
 }
 
@@ -433,6 +449,12 @@ void reconnectMQTTIfNeeded(){
   }
 }
 
+void restartIfConnectionLost(){
+  if (!MQTTclient.connected()) {
+    takeANap(RETRYPERIOD_SECONDS);
+  }
+}
+
 void doProcessingLoop(){
   while(true){
     processLoop();
@@ -441,10 +463,11 @@ void doProcessingLoop(){
 
 void processLoop(){
   esp_task_wdt_reset();
-  reconnectMQTTIfNeeded();
+  //reconnectMQTTIfNeeded();
+  restartIfConnectionLost();
   esp_task_wdt_reset();
-  MQTTclient.loop();
   
+  MQTTclient.loop();  
   
   if (esp_timer_get_time() - timeOfLastMessage > SENSORIDMESSAGETIMEOUT_SECONDS*1000000){
     readAndSendDataFromAllSensors();
@@ -468,5 +491,6 @@ void readAndSendDataFromAllSensors(){
 
 
 void loop() {
- 
+ //Should never get here.  If something goes wrong, take a nap and recover.
+ takeANap(RETRYPERIOD_SECONDS);
 }
