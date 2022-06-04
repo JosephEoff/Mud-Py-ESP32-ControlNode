@@ -379,6 +379,7 @@ void connectToServer(){
 }
 
 void connectWLAN(){
+  WiFi.disconnect(true);
   WiFi.setHostname(MQTT_CLIENTID);
   WiFi.mode(WIFI_STA);
   WiFi.begin(WLAN_SSID, WLAN_PASSWORD);
